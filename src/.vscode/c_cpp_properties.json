@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "browse": {
+                "databaseFilename": "",
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "includePath": [
+                "/home/fer-tfm/workspaces/cg_slam/devel/include/**",
+                "/opt/ros/kinetic/include/**",
+                "/home/fer-tfm/workspaces/cg_slam/src/ublox_f9p-master/ublox_gps/include/**",
+                "/home/fer-tfm/workspaces/cg_slam/src/ublox_f9p-master/ublox_msgs/include/**",
+                "/home/fer-tfm/workspaces/cg_slam/src/ublox_f9p-master/ublox_serialization/include/**",
+                "/usr/include/**"
+            ],
+            "name": "ROS",
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}

@@ -9,8 +9,10 @@ set(CMAKE_BUILD_TYPE Release)
 find_package(catkin REQUIRED COMPONENTS
    roscpp
    std_msgs
+   nav_msgs
    message_generation
    tf
+   ublox_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -88,7 +90,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS src
   LIBRARIES cg_mrslam_matcher_library cg_mrslam_slam_library cg_mrslam_ros_utils_library cg_mrslam_ros_map_publisher_library cg_mrslam_library
-  CATKIN_DEPENDS message_runtime
+  CATKIN_DEPENDS message_runtime ublox_msgs nav_msgs
 #  DEPENDS system_lib
 )
 

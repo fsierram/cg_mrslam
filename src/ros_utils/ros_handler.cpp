@@ -40,14 +40,17 @@ RosHandler::RosHandler (int idRobot, int nRobots, TypeExperiment typeExperiment)
   
   _odomTopic = "odom";
   _scanTopic = "base_scan";
+  _gpsTopic = "ublox_gps_rover/fix";
+  _headingTopic = "ublox_gps_rover/navrelposned";
 
   _baseFrameId = "base_link";
   _trobotlaser = SE2(0,0,0);
 
   _useOdom = false;
   _useLaser = false;
+  _useGPS = false;
 
-  _invertedLaser = false;
+  _invertedLaser = true;
 
   std::string fullns = ros::this_node::getNamespace();
   std::string delimiter = "_";
@@ -80,6 +83,15 @@ void RosHandler::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   _laserscan = *msg;
 }
 
+void RosHandler::gpsCallback(const sensor_msgs::NavSatFix::ConstPtr& msg)
+{
+  _gps = *msg;
+}
+void RosHandler::headingCallback(const ublox_msgs::NavRELPOSNED::ConstPtr& msg)
+{
+  _heading = *msg;
+}
+
 SE2 RosHandler::getOdom(){
   SE2 odomSE2;
   odomSE2.setTranslation(Eigen::Vector2d(_odom.pose.pose.position.x, _odom.pose.pose.position.y));
@@ -97,10 +109,16 @@ RobotLaser* RosHandler::getLaser(){
   rlaser->setOdomPose(getOdom());
   std::vector<double> ranges(_laserscan.ranges.size());
   for (size_t i =0; i < _laserscan.ranges.size(); i++){
-    ranges[i] = _laserscan.ranges[i];
+    if(std::isinf(_laserscan.ranges[i])){
+        ranges[i] = 0;  
+      }
+      else{
+          ranges[i] = _laserscan.ranges[i];
+      }
   }
   if (_invertedLaser)
     std::reverse(ranges.begin(), ranges.end());
+  
   rlaser->setRanges(ranges);
   rlaser->setTimestamp(_laserscan.header.stamp.sec + _laserscan.header.stamp.nsec * pow(10, -9));
   rlaser->setLoggerTimestamp(rlaser->timestamp());
@@ -108,7 +126,36 @@ RobotLaser* RosHandler::getLaser(){
 
   return rlaser;
 }
+double RosHandler::Deg2Rad(double deg) {
+    return M_PI * deg /180.;
+}
+Eigen::Vector2d RosHandler::GPS2Ecef(const double lat,const double lon,const double alt){
 
+  // https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_geodetic_to_ECEF_coordinates
+  constexpr double a = 6378137.;  // semi-major axis, equator to center.
+  constexpr double f = 1. / 298.257223563;
+  constexpr double b = a * (1. - f);  // semi-minor axis, pole to center.
+  constexpr double a_squared = a * a;
+  constexpr double b_squared = b * b;
+  constexpr double e_squared = (a_squared - b_squared) / a_squared;
+
+  const double sin_phi = std::sin(Deg2Rad(lat));
+  const double cos_phi = std::cos(Deg2Rad(lat));
+  const double sin_lambda = std::sin(Deg2Rad(lon));
+  const double cos_lambda = std::cos(Deg2Rad(lon));
+  const double N = a / std::sqrt(1 - e_squared * sin_phi * sin_phi);
+  const double x = (N + alt) * cos_phi * cos_lambda;
+  const double y = (N + alt) * cos_phi * sin_lambda;
+  const double z = (b_squared / a_squared * N + alt) * sin_phi;
+
+  return Eigen::Vector2d(-x,-y);
+}
+SE2 RosHandler::getGPS(){
+      SE2 gpsSE2;
+      gpsSE2.setTranslation(GPS2Ecef(_gps.latitude, _gps.longitude, _gps.altitude));
+      gpsSE2.setRotation(Eigen::Rotation2Dd(Deg2Rad(-_heading.relPosHeading * 1E-5) + M_PI_2));
+      return gpsSE2;
+}
 void RosHandler::init(){
 
   if (_useOdom){
@@ -141,7 +188,12 @@ void RosHandler::init(){
 
     std::cerr << "Robot-laser transform: (" << _trobotlaser.translation().x() << ", " << _trobotlaser.translation().y() << ", " << _trobotlaser.rotation().angle() << ")" << std::endl;
   }
-
+  if (_useGPS){
+    sensor_msgs::NavSatFix::ConstPtr gpsmsg = ros::topic::waitForMessage<sensor_msgs::NavSatFix>(_gpsTopic);
+    _gps = *gpsmsg;
+    ublox_msgs::NavRELPOSNED::ConstPtr headingmsg = ros::topic::waitForMessage<ublox_msgs::NavRELPOSNED>(_headingTopic);
+    _heading = *headingmsg;
+  }
   if (_typeExperiment == SIM){
     //Init ground-truth
     for (int r = 0; r < _nRobots; r++){
@@ -161,6 +213,10 @@ void RosHandler::run(){
   if (_useLaser) //Subscribe Laser
     _subScan = _nh.subscribe<sensor_msgs::LaserScan>(_scanTopic, 1,  &RosHandler::scanCallback, this);
 
+  if(_useGPS){ //Subscribe GPS
+    _subGPS = _nh.subscribe<sensor_msgs::NavSatFix>(_gpsTopic, 1, &RosHandler::gpsCallback, this);
+    _subHeading =_nh.subscribe<ublox_msgs::NavRELPOSNED>(_headingTopic, 1, &RosHandler::headingCallback, this);
+  }
   if (_typeExperiment == BAG){
     //subscribe pings
     _subPing = _nh.subscribe<cg_mrslam::Ping>("ping_msgs", 1, &RosHandler::pingCallback, this);

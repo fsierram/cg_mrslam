@@ -65,12 +65,11 @@ int main(int argc, char **argv)
   int idRobot;
   int nRobots;
   std::string outputFilename;
-  std::string odometryTopic, scanTopic, mapTopic, odomFrame, mapFrame, baseFrame;
+  std::string odometryTopic, scanTopic,gpsTopic,headingTopic, mapTopic, odomFrame, mapFrame, baseFrame;
   std::vector<double> initialPose;
   initialPose.clear();
-  bool publishMap, publishGraph;
-  bool invertedLaser;
-  
+  bool publishMap, publishGraph, useGPS;
+
   float localizationAngularUpdate, localizationLinearUpdate;
   float maxRange, usableRange, infinityFillingRange;
 
@@ -86,14 +85,16 @@ int main(int argc, char **argv)
   arg.param("linearUpdate", localizationLinearUpdate, 0.25, "linear translation interval for updating the graph, in meters");
   arg.param("odometryTopic", odometryTopic, "odom", "odometry ROS topic");
   arg.param("scanTopic", scanTopic, "scan", "scan ROS topic");
+  arg.param("gpsTopic", gpsTopic, "ublox_gps_rover/fix", "gps ROS topic");
+  arg.param("headingTopic", headingTopic, "ublox_gps_rover/navrelposned", "heading ROS topic");
   arg.param("mapTopic", mapTopic, "map", "map ROS topic");
   arg.param("odomFrame", odomFrame, "odom", "odom frame");
   arg.param("mapFrame", mapFrame, "map", "map frame");
   arg.param("baseFrame", baseFrame, "/base_link", "base robot frame");
-  arg.param("initialPose", initialPose, std::vector<double>(), "Pose of the first vertex in the graph. Usage: -initial_pose 0,0,0");
+  arg.param("initialPose", initialPose, std::vector<double>(), "Pose of the first vertex in the graph. Usage: -initialPose 0,0,0");
   arg.param("publishMap", publishMap, false, "Publish map");
+  arg.param("useGPS", useGPS, false, "Use GPS data");
   arg.param("publishGraph", publishGraph, false, "Publish graph");
-  arg.param("invertedLaser", invertedLaser, false, "Laser is upside down");
   arg.param("o", outputFilename, "", "file where to save output");
   arg.parseArgs(argc, argv);
 
@@ -113,10 +114,12 @@ int main(int argc, char **argv)
   RosHandler rh(idRobot, nRobots, REAL);
   rh.setOdomTopic(odometryTopic);
   rh.setScanTopic(scanTopic);
+  rh.setGPSTopic(gpsTopic);
+  rh.setHeadingTopic(headingTopic);
   rh.setBaseFrame(baseFrame);
   rh.useOdom(true);
   rh.useLaser(true);
-  rh.invertedLaser(invertedLaser);
+  rh.useGPS(useGPS);
   rh.init();
   rh.run();
 
@@ -127,6 +130,8 @@ int main(int argc, char **argv)
   //For estimation
   SE2 currEst;
   SE2 odomPosk_1 = rh.getOdom();
+  SE2 gpsPos0 = rh.getGPS();
+
   if (initialPose.size()){
     if (initialPose.size()==3){
       currEst = SE2(initialPose[0],initialPose[1],initialPose[2]);
@@ -150,7 +155,7 @@ int main(int argc, char **argv)
 
   RobotLaser* rlaser = rh.getLaser();
 
-  gslam.setInitialData(currEst, rlaser);
+  gslam.setInitialData(currEst, rlaser, gpsPos0);
 
   cv::Mat occupancyMap;
   Eigen::Vector2f mapCenter;
@@ -197,12 +202,14 @@ int main(int argc, char **argv)
 
     odomPosk_1 = odomPosk;
 
+    SE2 gpsPosk = rh.getGPS();
+
     if((distanceSE2(gslam.lastVertex()->estimate(), currEst) > localizationLinearUpdate) || 
        (fabs(gslam.lastVertex()->estimate().rotation().angle()-currEst.rotation().angle()) > localizationAngularUpdate)){
       //Add new data
       RobotLaser* laseri = rh.getLaser();
 
-      gslam.addDataSM(currEst, laseri);
+      gslam.addDataSM(currEst, laseri, gpsPosk);
       gslam.findConstraints();
       
       struct timeval t_ini, t_fin;

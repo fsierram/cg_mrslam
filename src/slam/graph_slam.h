@@ -36,6 +36,8 @@
 #include "g2o/core/optimization_algorithm_factory.h"
 #include "g2o/core/optimization_algorithm_gauss_newton.h"
 #include "g2o/solvers/csparse/linear_solver_csparse.h"
+#include "g2o/types/slam2d/edge_se2_prior.h"
+#include "g2o/types/slam2d/edge_se2_xyprior.h"
 
 #include "matcher/scan_matcher.h"
 #include "vertices_finder.h"
@@ -61,9 +63,9 @@ class GraphSLAM{
   bool isMyVertex(OptimizableGraph::Vertex *v);
 
   void setInitialData(SE2 initialTruePose, SE2 initialOdom, RobotLaser* laser); //For simulation
-  void setInitialData(SE2 initialOdom, RobotLaser* laser);
+  void setInitialData(SE2 initialOdom, RobotLaser* laser,SE2 gps);
   void addData(SE2 pose, RobotLaser* laser);
-  void addDataSM(SE2 pose, RobotLaser* laser);
+  void addDataSM(SE2 pose, RobotLaser* laser, SE2 gps);
 
   inline SparseOptimizer *graph() {return _graph;}
   inline VertexSE2 *lastVertex() {return _lastVertex;}
@@ -86,6 +88,8 @@ class GraphSLAM{
   VertexSE2 *_firstRobotPose;
   VertexSE2 *_lastVertex;
   SE2 _lastOdom;
+  SE2 _lastGPS;
+  SE2 _initGps;
  
   VerticesFinder _vf;
   ScanMatcher _closeMatcher;
@@ -102,6 +106,7 @@ class GraphSLAM{
 
   Eigen::Matrix3d _odominf;
   Eigen::Matrix3d _SMinf;
+  Eigen::Matrix3d _gpsinf;
   OptimizableGraph::EdgeSet _odomEdges;
   OptimizableGraph::EdgeSet _SMEdges;
 

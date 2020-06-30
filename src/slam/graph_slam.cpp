@@ -74,6 +74,9 @@ void GraphSLAM::init(double resolution, double kernelRadius, int windowLoopClosu
 
   _SMinf = 1000 * Eigen::Matrix3d::Identity();
   _SMinf(2,2) = 10000;
+
+  _gpsinf = 1000 * Eigen::Matrix3d::Identity();
+  _gpsinf(2,2) = 10000;
 }
 
 void GraphSLAM::setIdRobot(int idRobot){
@@ -113,7 +116,7 @@ void GraphSLAM::setInitialData(SE2 initialTruePose, SE2 initialOdom, RobotLaser*
   _firstRobotPose->setFixed(true);
 }
 
-void GraphSLAM::setInitialData(SE2 initialOdom, RobotLaser* laser){
+void GraphSLAM::setInitialData(SE2 initialOdom, RobotLaser* laser, SE2 gps){
   boost::mutex::scoped_lock lockg(graphMutex);
 
   _lastOdom = initialOdom;
@@ -140,6 +143,10 @@ void GraphSLAM::setInitialData(SE2 initialOdom, RobotLaser* laser){
 
   _firstRobotPose = _lastVertex;
   _firstRobotPose->setFixed(true);
+
+  _initGps = gps;
+  _lastGPS = gps;
+  std::cout<< "Initial gps "<<_initGps[0]<<","<<_initGps[1]<<","<<_initGps[2]<<std::endl;
 }
 
 void GraphSLAM::addData(SE2 currentOdom, RobotLaser* laser){
@@ -194,7 +201,7 @@ void GraphSLAM::addData(SE2 currentOdom, RobotLaser* laser){
   _lastVertex = v;
 }
 
-void GraphSLAM::addDataSM(SE2 currentOdom, RobotLaser* laser){
+void GraphSLAM::addDataSM(SE2 currentOdom, RobotLaser* laser, SE2 gps){
   boost::mutex::scoped_lock lockg(graphMutex);
 
   //Add current vertex
@@ -202,7 +209,15 @@ void GraphSLAM::addDataSM(SE2 currentOdom, RobotLaser* laser){
 
   SE2 displacement = _lastOdom.inverse() * currentOdom;
   SE2 currEst = _lastVertex->estimate() * displacement;
+  std::cout<< "REL displacement Odom : "<<displacement[0]<<", "<<displacement[1]<<", "<<displacement[2]<<std::endl;
 
+
+  //std::cout<< "Current GPS "<<gps[0]<<","<<gps[1]<<","<<gps[2]<<std::endl;
+  SE2 gps_displacement = _initGps.inverse() * gps;
+  SE2 rel_gps_displacement = _lastGPS.inverse() * gps;
+  
+  std::cout<< "REL displacement GPS:  "<<rel_gps_displacement[0]<<", "<<rel_gps_displacement[1]<<", "<<rel_gps_displacement[2]<<std::endl;
+  std::cout<< "ABS displacement GPS:  "<<gps_displacement[0]<<", "<<gps_displacement[1]<<", "<<gps_displacement[2]<<std::endl;
   v->setEstimate(currEst);
   v->setId(++_runningVertexId + idRobot() * baseId());
   //Add covariance information
@@ -225,7 +240,13 @@ void GraphSLAM::addDataSM(SE2 currentOdom, RobotLaser* laser){
   e->setId(++_runningEdgeId + idRobot() * baseId());
   e->vertices()[0] = _lastVertex;
   e->vertices()[1] = v;
-      
+
+  //Add current gps edge
+  EdgeSE2Prior *e2 = new EdgeSE2Prior;
+  e2->setId(++_runningEdgeId + idRobot() * baseId());
+  e2->vertices()[0] = v;
+  e2->setMeasurement(gps_displacement);
+  e2->setInformation(_gpsinf);
 
   OptimizableGraph::VertexSet vset;
   vset.insert(_lastVertex);
@@ -261,8 +282,10 @@ void GraphSLAM::addDataSM(SE2 currentOdom, RobotLaser* laser){
   }
 
   _graph->addEdge(e);
+  //_graph->addEdge(e2);
 
   _lastOdom = currentOdom;
+  _lastGPS = gps;
   _lastVertex = v;
 }
 

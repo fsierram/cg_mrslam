@@ -55,7 +55,7 @@ int main(int argc, char **argv)
   int nRobots;
   std::string base_addr;
   std::string outputFilename;
-  std::string odometryTopic, scanTopic, mapTopic, odomFrame, mapFrame, baseFrame;
+  std::string odometryTopic, scanTopic, gpsTopic, headingTopic, mapTopic, odomFrame, mapFrame, baseFrame;
   std::vector<double> initialPose;
   initialPose.clear();
   bool publishMap, publishGraph;
@@ -82,6 +82,8 @@ int main(int argc, char **argv)
   arg.param("windowMRLoopClosure",  windowMRLoopClosure, 10,   "sliding window for the intra-robot loop closures");
   arg.param("odometryTopic", odometryTopic, "odom", "odometry ROS topic");
   arg.param("scanTopic", scanTopic, "scan", "scan ROS topic");
+  arg.param("gpsTopic", gpsTopic, "ublox_gps_rover/fix", "gps ROS topic");
+  arg.param("headingTopic", headingTopic, "ublox_gps_rover/navrelposned", "heading ROS topic");
   arg.param("mapTopic", mapTopic, "map", "map ROS topic");
   arg.param("odomFrame", odomFrame, "odom", "odom frame");
   arg.param("mapFrame", mapFrame, "map", "map frame");
@@ -122,9 +124,12 @@ int main(int argc, char **argv)
   RosHandler rh(idRobot, nRobots, typeExperiment);
   rh.setOdomTopic(odometryTopic);
   rh.setScanTopic(scanTopic);
+  rh.setGPSTopic(gpsTopic);
+  rh.setHeadingTopic(headingTopic);
   rh.setBaseFrame(baseFrame);
   rh.useOdom(true);
   rh.useLaser(true);
+  rh.useGPS(true);
 
   rh.init();   //Wait for initial odometry and laserScan
   rh.run();
@@ -136,6 +141,8 @@ int main(int argc, char **argv)
   //For estimation
   SE2 currEst;
   SE2 odomPosk_1 = rh.getOdom();
+  SE2 gpsPos0 = rh.getGPS();
+
   if (initialPose.size()){
     if (initialPose.size()==3){
       currEst = SE2(initialPose[0],initialPose[1],initialPose[2]);
@@ -163,7 +170,7 @@ int main(int argc, char **argv)
 
   RobotLaser* rlaser = rh.getLaser();
 
-  gslam.setInitialData(currEst, rlaser);
+  gslam.setInitialData(currEst, rlaser, gpsPos0);
 
   cv::Mat occupancyMap;
   Eigen::Vector2f mapCenter;
@@ -213,12 +220,14 @@ int main(int argc, char **argv)
 
     odomPosk_1 = odomPosk;
 
+    SE2 gpsPosk = rh.getGPS();
+
     if((distanceSE2(gslam.lastVertex()->estimate(), currEst) > localizationLinearUpdate) || 
        (fabs(gslam.lastVertex()->estimate().rotation().angle()-currEst.rotation().angle()) > localizationAngularUpdate)){
       //Add new data
       RobotLaser* laseri = rh.getLaser();
 
-      gslam.addDataSM(currEst, laseri);
+      gslam.addDataSM(currEst, laseri, gpsPosk);
       gslam.findConstraints();
       gslam.findInterRobotConstraints();
 

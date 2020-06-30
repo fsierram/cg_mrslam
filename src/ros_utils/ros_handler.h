@@ -31,9 +31,12 @@
 
 #include "ros/ros.h"
 #include "tf/tf.h"
+#include "math.h"
 #include "tf/transform_listener.h"
 #include "nav_msgs/Odometry.h"
 #include "sensor_msgs/LaserScan.h"
+#include "sensor_msgs/NavSatFix.h"
+#include "ublox_msgs/ublox_msgs.h"
 
 #include "cg_mrslam/Ping.h"
 #include "cg_mrslam/SLAM.h"
@@ -54,10 +57,11 @@ class RosHandler
   
   inline void useOdom(bool useOdom){_useOdom = useOdom;}
   inline void useLaser(bool useLaser){_useLaser = useLaser;}
-
+  inline void useGPS(bool useGPS){_useGPS = useGPS;}
   inline void invertedLaser(bool invertedLaser){_invertedLaser = invertedLaser;}
 
   SE2 getOdom();
+  SE2 getGPS();
   RobotLaser* getLaser();
   inline float getLaserMaxRange() {return _laserMaxRange;}
   inline SE2 getGroundTruth(int robot){return _gtPoses[robot];}
@@ -65,8 +69,13 @@ class RosHandler
 
   inline void setOdomTopic(std::string odomTopic) {_odomTopic = odomTopic;}
   inline void setScanTopic(std::string scanTopic) {_scanTopic = scanTopic;}
-
+  inline void setGPSTopic(std::string gpsTopic) {_gpsTopic = gpsTopic;}
+  inline void setHeadingTopic(std::string headingTopic) {_headingTopic = headingTopic;}
   inline void setBaseFrame(std::string baseFrameId) {_baseFrameId = baseFrameId;}
+
+
+  Eigen::Vector2d GPS2Ecef(const double lat,const double lon,const double alt);
+  double Deg2Rad(double deg);
 
   void init();
   void run();
@@ -78,6 +87,8 @@ class RosHandler
  protected:
   void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
   void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
+  void gpsCallback(const sensor_msgs::NavSatFix::ConstPtr& msg);
+  void headingCallback(const ublox_msgs::NavRELPOSNED::ConstPtr& msg);
   void groundTruthCallback(const nav_msgs::Odometry::ConstPtr& msg, SE2 *gtpose);
   void pingCallback(const cg_mrslam::Ping::ConstPtr& msg);
 
@@ -91,6 +102,8 @@ class RosHandler
   //Subscribers
   ros::Subscriber _subOdom;
   ros::Subscriber _subScan;
+  ros::Subscriber _subGPS;
+  ros::Subscriber _subHeading;
   ros::Subscriber *_subgt;
   ros::Subscriber _subPing;
 
@@ -102,12 +115,14 @@ class RosHandler
   //Topics names
   std::string _odomTopic;
   std::string _scanTopic;
+  std::string _headingTopic;
+  std::string _gpsTopic;
   
   int _idRobot;
   int _nRobots;
   string _rootns;
   TypeExperiment _typeExperiment;
-  bool _useOdom, _useLaser;
+  bool _useOdom, _useLaser, _useGPS;
   bool _invertedLaser;
   string _baseFrameId;
   SE2 _trobotlaser;
@@ -115,6 +130,8 @@ class RosHandler
   //ROS msgs
   nav_msgs::Odometry _odom;
   sensor_msgs::LaserScan _laserscan;
+  sensor_msgs::NavSatFix _gps;
+  ublox_msgs::NavRELPOSNED _heading;
   float _laserMaxRange;
   SE2 *_gtPoses;
 
