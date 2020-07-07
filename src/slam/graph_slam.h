@@ -63,9 +63,11 @@ class GraphSLAM{
   bool isMyVertex(OptimizableGraph::Vertex *v);
 
   void setInitialData(SE2 initialTruePose, SE2 initialOdom, RobotLaser* laser); //For simulation
-  void setInitialData(SE2 initialOdom, RobotLaser* laser,SE2 gps);
+  void setInitialData(SE2 initialOdom, RobotLaser* laser, bool hasGPS,SE2 gps);
+  void setInitialGPS(SE2 gps);
   void addData(SE2 pose, RobotLaser* laser);
-  void addDataSM(SE2 pose, RobotLaser* laser, SE2 gps);
+  void addDataSM(SE2 pose, RobotLaser* laser, bool hasGPS,SE2 gps);
+  void addDataGPS(SE2 gps);
 
   inline SparseOptimizer *graph() {return _graph;}
   inline VertexSE2 *lastVertex() {return _lastVertex;}

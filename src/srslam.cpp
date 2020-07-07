@@ -155,7 +155,7 @@ int main(int argc, char **argv)
 
   RobotLaser* rlaser = rh.getLaser();
 
-  gslam.setInitialData(currEst, rlaser, gpsPos0);
+  gslam.setInitialData(currEst, rlaser, useGPS, gpsPos0);
 
   cv::Mat occupancyMap;
   Eigen::Vector2f mapCenter;
@@ -209,7 +209,7 @@ int main(int argc, char **argv)
       //Add new data
       RobotLaser* laseri = rh.getLaser();
 
-      gslam.addDataSM(currEst, laseri, gpsPosk);
+      gslam.addDataSM(currEst, laseri, useGPS, gpsPosk);
       gslam.findConstraints();
       
       struct timeval t_ini, t_fin;

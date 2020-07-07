@@ -58,7 +58,7 @@ int main(int argc, char **argv)
   std::string odometryTopic, scanTopic, gpsTopic, headingTopic, mapTopic, odomFrame, mapFrame, baseFrame;
   std::vector<double> initialPose;
   initialPose.clear();
-  bool publishMap, publishGraph;
+  bool publishMap, publishGraph,useGPS;
 
   float localizationAngularUpdate, localizationLinearUpdate;
   float maxRange, usableRange, infinityFillingRange;
@@ -90,6 +90,7 @@ int main(int argc, char **argv)
   arg.param("baseFrame", baseFrame, "/base_link", "base robot frame");
   arg.param("initialPose", initialPose, std::vector<double>(), "Pose of the first vertex in the graph. Usage: -initial_pose 0,0,0");
   arg.param("publishMap", publishMap, false, "Publish map");
+  arg.param("useGPS", useGPS, false, "Use GPS data");
   arg.param("publishGraph", publishGraph, false, "Publish graph");
   arg.param("modality", modality, "sim", "Choose mrslam modality from [sim, real, bag]. Consult Readme for differences between modalities.");
   arg.param("o", outputFilename, "", "file where to save output");
@@ -129,7 +130,7 @@ int main(int argc, char **argv)
   rh.setBaseFrame(baseFrame);
   rh.useOdom(true);
   rh.useLaser(true);
-  rh.useGPS(true);
+  rh.useGPS(useGPS);
 
   rh.init();   //Wait for initial odometry and laserScan
   rh.run();
@@ -170,7 +171,7 @@ int main(int argc, char **argv)
 
   RobotLaser* rlaser = rh.getLaser();
 
-  gslam.setInitialData(currEst, rlaser, gpsPos0);
+  gslam.setInitialData(currEst, rlaser, useGPS,gpsPos0);
 
   cv::Mat occupancyMap;
   Eigen::Vector2f mapCenter;
@@ -227,7 +228,7 @@ int main(int argc, char **argv)
       //Add new data
       RobotLaser* laseri = rh.getLaser();
 
-      gslam.addDataSM(currEst, laseri, gpsPosk);
+      gslam.addDataSM(currEst, laseri, useGPS,gpsPosk);
       gslam.findConstraints();
       gslam.findInterRobotConstraints();
 
